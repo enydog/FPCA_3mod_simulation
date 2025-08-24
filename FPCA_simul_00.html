@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FPCA de MMP — Simulador Interactivo</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#101a33; --ink:#e7eefc; --mut:#a5b4d6; --grid:#223455;
+    --c1:#79c0ff; --c2:#ffb86b; --c3:#ff6e8a; --c4:#7aa2f7; --gold:#ffd84d;
+    --ok:#3ddc97; --warn:#ffb703;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,Segoe UI,Inter,Arial}
+  .wrap{display:grid;grid-template-columns:360px 1fr;gap:16px;min-height:100vh}
+  aside{background:var(--panel);padding:16px 16px 24px;border-right:1px solid #0e1730}
+  main{padding:16px}
+  h1{font-size:18px;margin:0 0 4px 0}
+  .mut{color:var(--mut)}
+  .row{margin:10px 0}
+  label{display:block;margin-bottom:6px;color:var(--mut)}
+  input[type="range"]{width:100%}
+  .ctrl{background:#0d1630;padding:10px;border:1px solid #132149;border-radius:12px;margin-bottom:12px}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:#16284d;border:1px solid #213c77;color:var(--ink);padding:8px 10px;border-radius:10px;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .btn.warn{background:#402b00;border-color:#7a5400}
+  .btn.ok{background:#083322;border-color:#0b6043}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .krow{display:grid;grid-template-columns:32px 1fr 52px;gap:8px;align-items:center;margin:4px 0}
+  .tag{font-weight:600;color:#9ccaff}
+  .legend{display:flex;gap:12px;align-items:center;margin-top:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #24426f;border-radius:999px;background:#0e1b34;color:var(--mut);font-size:12px}
+  canvas{background:#091126;border-radius:16px;border:1px solid #132149}
+  .small{font-size:12px}
+  .hr{height:1px;background:#132149;margin:14px 0}
+  .scree{height:56px;background:#0b152b;border:1px solid #132149;border-radius:10px;padding:4px;display:flex;align-items:flex-end;gap:4px}
+  .bar{flex:1;background:linear-gradient(180deg,#7aa2f7,#4b6ab3);border-radius:6px 6px 0 0;position:relative}
+  .bar small{position:absolute;top:-16px;left:50%;transform:translateX(-50%);color:var(--mut)}
+  .pill{display:inline-block;background:#0e1b34;border:1px solid #223b6a;padding:4px 8px;border-radius:999px;margin-right:6px}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+  details{background:#0d1630;border:1px solid #132149;border-radius:12px;padding:8px 10px;margin-top:10px}
+  summary{cursor:pointer;color:#9ccaff}
+  a{color:#9ccaff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside>
+    <h1>FPCA de MMP — Simulador del Articulo de Michael J. Puchowiczand Philip F. Skiba</h1>
+    <div class="mut small">Descompón la curva MMP: <span class="pill">y = exp( μ(t) + Σ a<sub>k</sub>·φ<sub>k</sub>(t) )</span></div>
+
+    <div class="ctrl">
+      <div class="row"><label>Cargar modelo (JSON)</label>
+        <input type="file" id="fileModel" accept=".json" />
+        <div id="modelMeta" class="small mut" style="margin-top:6px"></div>
+      </div>
+      <div class="row"><label>Opcional: Cargar MMP real (CSV: duration[s],power[W])</label>
+        <input type="file" id="fileMmp" accept=".csv" />
+        <div id="mmpMeta" class="small mut" style="margin-top:6px"></div>
+      </div>
+      <div class="hr"></div>
+      <div class="row grid">
+        <button class="btn ok" id="btnReset">Reset sliders</button>
+        <button class="btn" id="btnExport">Exportar curva (CSV)</button>
+      </div>
+      <div class="row grid">
+        <button class="btn" id="btnAnim1">Animar PC1</button>
+        <button class="btn" id="btnAnim2">Animar PC2</button>
+      </div>
+      <div class="row grid">
+        <button class="btn" id="btnAnim3">Animar PC3</button>
+        <button class="btn warn" id="btnStop">Detener</button>
+      </div>
+      <div class="row">
+        <label>Velocidad animación</label>
+        <input type="range" id="animSpeed" min="50" max="1500" value="350">
+      </div>
+      <div class="row" id="sliderHost"></div>
+      <div class="legend small">
+        <span class="chip"><span style="width:10px;height:10px;background:var(--c1);display:inline-block;border-radius:3px"></span> Curva actual</span>
+        <span class="chip"><span style="width:10px;height:10px;background:#999;display:inline-block;border-radius:3px"></span> MMP (CSV)</span>
+        <span class="chip"><span style="width:10px;height:10px;background:var(--gold);display:inline-block;border-radius:3px"></span> Media μ</span>
+      </div>
+      <div class="hr"></div>
+      <div>
+        <div class="mut small">Valores clave (W)</div>
+        <div id="keyVals" class="mono small"></div>
+      </div>
+      <div class="hr"></div>
+      <div>
+        <div class="mut small">Scree (varianza explicada)</div>
+        <div id="scree" class="scree"></div>
+      </div>
+
+      <details>
+        <summary>Formato JSON esperado + helper en R</summary>
+        <div class="small" style="margin-top:8px">
+          <div class="mut">Estructura JSON:</div>
+          <pre class="small mono" style="white-space:pre-wrap">{
+  "grid": [t1, t2, ...],             // segundos (workGrid en escala real: exp(workGrid))
+  "mu":   [m1, m2, ...],             // μ(t) en dominio log: el mismo que usaste al modelar (log de potencia)
+  "phi":  [[φ1(t1..n)], [φ2(..)], [φ3(..)], [φ4(..)]], // componentes principales en el mismo dominio de μ
+  "lambda": [λ1, λ2, λ3, λ4]         // varianzas por PC
+}
+// La reconstrucción se hace: y(t) = exp( μ(t) + Σ (score_k)·φ_k(t) )
+// Tip: define score_k en unidades de SD: score_k = s_k * sqrt(λk), con s_k ∈ [−3,3]
+</pre>
+          <div class="mut" style="margin-top:6px">Exportar desde R (tras tu FPCA):</div>
+          <pre class="small mono" style="white-space:pre-wrap">library(jsonlite)
+K <- 3  # o 4 si quieres incluir PC4
+model <- list(
+  grid   = as.numeric(exp(FPCAdense$workGrid)),
+  mu     = as.numeric(FPCAdense$mu),
+  phi    = lapply(1:K, function(k) as.numeric(FPCAdense$phi[,k])),
+  lambda = as.numeric(FPCAdense$lambda[1:K])
+)
+write(toJSON(model, auto_unbox = TRUE, digits = 8), file = "fpca_model.json")
+</pre>
+        </div>
+      </details>
+    </div>
+  </aside>
+  <main>
+    <canvas id="plot" width="1400" height="780"></canvas>
+    <div class="small mut" style="margin-top:8px">Ejes: X log<sub>10</sub>(t, s) | Y Potencia (W). Cursor: arrastra para inspección.</div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // --- Estado del simulador ---
+  const state = {
+    grid: [],   // segundos (real)
+    mu: [],     // mu en log-potencia
+    phi: [],    // array de K [length=N]
+    lambda: [],
+    scoresSD: [], // s_k en unidades de SD (–3..3), raw = s_k*sqrt(lambda)
+    mmpCSV: null, // {t:[..], y:[..]}
+    anim: null,
+  };
+
+  // --- Canvas y layout ---
+  const canvas = document.getElementById('plot');
+  const ctx = canvas.getContext('2d');
+  const P = {l:80,r:20,t:30,b:60};
+  let W = canvas.width, H = canvas.height;
+  const PW = W - P.l - P.r, PH = H - P.t - P.b;
+
+  // --- Utilidades ---
+  const lerp = (a,b,t)=>a+(b-a)*t;
+  const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+  const fmtW = v => Math.round(v);
+  const fmtPct = v => (v*100).toFixed(1)+'%';
+  const log10 = Math.log10;
+  function niceLogTicks(xmin,xmax){
+    const res=[]; // [value,label,isMajor]
+    const a = Math.floor(log10(xmin));
+    const b = Math.ceil(log10(xmax));
+    const bases=[1,2,5];
+    for(let k=a;k<=b;k++){
+      for(const base of bases){
+        const v = base*Math.pow(10,k);
+        if(v>=xmin*0.999 && v<=xmax*1.001){
+          const isMajor = base===1;
+          let lab;
+          if(v<60) lab = v+"s";
+          else if(v<3600) lab = Math.round(v/60)+"m";
+          else lab=(v/3600).toFixed(v%3600?1:0)+"h";
+          res.push([v,lab,isMajor]);
+        }
+      }
+    }
+    return res;
+  }
+  function linearTicks(ymin,ymax,steps=6){
+    const s = (ymax-ymin)/steps; const arr=[];
+    for(let i=0;i<=steps;i++){ const v=ymin+i*s; arr.push(v); }
+    return arr;
+  }
+  function pathLine(xs,ys){
+    ctx.beginPath();
+    for(let i=0;i<xs.length;i++){
+      if(!isFinite(ys[i])) continue;
+      const x = x2px(xs[i]);
+      const y = y2px(ys[i]);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+  }
+
+  // --- Escalas (log X, linear Y) ---
+  let xmin=1, xmax=7200, ymin=0, ymax=800;
+  function x2px(x){ return P.l + (log10(x)-log10(xmin))/(log10(xmax)-log10(xmin))*PW; }
+  function y2px(y){ return P.t + (1-(y-ymin)/(ymax-ymin))*PH; }
+
+  // --- Modelo demo si no se carga JSON ---
+  function makeDemoModel(){
+    const N=90; // como tu M=90
+    const tmin=1, tmax=7200;
+    const grid = Array.from({length:N}, (_,i)=> Math.exp( Math.log(tmin) + (Math.log(tmax)-Math.log(tmin))*(i/(N-1)) ));
+    // μ en log-potencia (una MMP suave): P(t)=P0/(1+(t/t1))^b, mu=log(P)
+    const P0=950, t1=20, b=0.25;
+    const muLog = grid.map(t=> Math.log( P0 / Math.pow(1+t/t1, b) ));
+    // φ1: escalado global
+    const phi1 = grid.map(t=> 0.45*Math.exp(-Math.log(t+3)/7));
+    // φ2: inclinación corto vs largo
+    const phi2 = grid.map(t=> 0.38*(1 - 1/(1+Math.pow(t/80,0.7))) - 0.22);
+    // φ3: curvatura media (bache 2–8min)
+    const phi3 = grid.map(t=> 0.25*Math.exp(-Math.pow(Math.log(t)-Math.log(300),2)/(2*Math.pow(0.9,2))) - 0.08);
+    const phi=[phi1,phi2,phi3];
+    const lambda=[0.58**2, 0.25**2, 0.10**2]; // SDs como en tu ejemplo
+    return {grid, mu:muLog, phi, lambda};
+  }
+
+  function loadModel(m){
+    // Normaliza estructura (acepta phi como objeto o array)
+    let {grid, mu, phi, lambda} = m;
+    if(!Array.isArray(grid) || !Array.isArray(mu) || !phi || !Array.isArray(lambda)){
+      alert('Modelo JSON inválido.'); return;
+    }
+    // Si phi es objeto {"1":[..],"2":[..]} -> a array por orden de claves
+    if(!Array.isArray(phi)){
+      const keys = Object.keys(phi).sort();
+      phi = keys.map(k=> phi[k]);
+    }
+    // Asegura longitudes
+    const N = grid.length;
+    phi = phi.map(col=> col.slice(0,N));
+    mu = mu.slice(0,N);
+    state.grid = grid; state.mu = mu; state.phi = phi; state.lambda = lambda;
+    state.scoresSD = phi.map(_=>0);
+
+    // Rango ejes
+    xmin = Math.max(1, Math.min(...grid.filter(x=>isFinite(x)&&x>0)));
+    xmax = Math.max(...grid.filter(x=>isFinite(x)));
+    const yMean = state.grid.map((t,i)=> Math.exp(state.mu[i]));
+    ymax = Math.max( Math.max(...yMean)*1.15, 200 );
+    ymin = 0;
+
+    buildSliders();
+    updateScree();
+    draw();
+    showModelMeta();
+  }
+
+  function showModelMeta(){
+    const k = state.phi.length; const N = state.grid.length;
+    const txt = `N = ${N} puntos, PCs = ${k}, rango t = ${secFmt(xmin)} → ${secFmt(xmax)}`;
+    document.getElementById('modelMeta').textContent = txt;
+  }
+
+  function secFmt(v){
+    if(v<60) return v.toFixed(0)+"s";
+    if(v<3600) return (v/60).toFixed(0)+"m";
+    return (v/3600).toFixed(1)+"h";
+  }
+
+  function buildSliders(){
+    const host = document.getElementById('sliderHost');
+    host.innerHTML = '<label>Scores por PC (unidades de SD, −3..+3)</label>';
+    state.scoresSD = state.phi.map(_=>0);
+    state.phi.forEach((_,i)=>{
+      const row = document.createElement('div'); row.className='krow';
+      row.innerHTML = `
+        <div class="tag">PC${i+1}</div>
+        <input type="range" min="-3" max="3" value="0" step="0.01" data-idx="${i}" />
+        <output id="out${i}">0.00</output>
+      `;
+      host.appendChild(row);
+    });
+    host.querySelectorAll('input[type=range]').forEach(sl=>{
+      sl.addEventListener('input', e=>{
+        const idx = +e.target.dataset.idx; const val = +e.target.value; state.scoresSD[idx] = val; 
+        document.getElementById('out'+idx).textContent = val.toFixed(2);
+        draw();
+      });
+    });
+  }
+
+  function curveFromScores(){
+    const {grid, mu, phi, lambda, scoresSD} = state;
+    const K = phi.length; const N = grid.length;
+    const raw = scoresSD.map((s,k)=> s*Math.sqrt(lambda[k]||1));
+    const y = new Array(N);
+    for(let i=0;i<N;i++){
+      let acc = mu[i];
+      for(let k=0;k<K;k++) acc += raw[k]*(phi[k][i]||0);
+      y[i] = Math.exp(acc);
+    }
+    return y;
+  }
+
+  // Proyección LS para sugerir scores vs MMP CSV
+  function suggestScoresFromMMP(){
+    if(!state.mmpCSV) return;
+    const {grid, mu, phi, lambda} = state;
+    // Interpola mu y phi a tiempos del CSV (nearest neighbor)
+    const tCSV = state.mmpCSV.t, yCSV = state.mmpCSV.y;
+    const N = tCSV.length; const K = phi.length;
+    const ylog = yCSV.map(v=> Math.log(Math.max(1e-6,v)));
+    // nearest index en grid
+    function nearestIdx(t){
+      // binary search
+      let lo=0, hi=grid.length-1;
+      while(hi-lo>1){ const mid=(lo+hi)>>1; if(grid[mid]<t) lo=mid; else hi=mid; }
+      return (t-grid[lo] < grid[hi]-t)? lo : hi;
+    }
+    const Phi = Array.from({length:N}, ()=>Array(K).fill(0));
+    const muV = new Array(N);
+    for(let i=0;i<N;i++){
+      const j = nearestIdx(tCSV[i]);
+      muV[i] = mu[j];
+      for(let k=0;k<K;k++) Phi[i][k] = phi[k][j];
+    }
+    const yTilde = ylog.map((v,i)=> v - muV[i]);
+    // Resuelve (Phi^T Phi) a = Phi^T y  (normal equations)
+    const PtP = Array.from({length:K},()=>Array(K).fill(0));
+    const Pty = Array(K).fill(0);
+    for(let i=0;i<N;i++){
+      for(let a=0;a<K;a++){
+        const Pia = Phi[i][a];
+        Pty[a] += Pia*yTilde[i];
+        for(let b=0;b<K;b++) PtP[a][b] += Pia*Phi[i][b];
+      }
+    }
+    const a = solveSymmetric(PtP,Pty);
+    if(!a) return;
+    // Pasa a unidades de SD: s_k = a_k / sqrt(lambda_k)
+    state.scoresSD = a.map((ak,k)=> ak/Math.max(Math.sqrt(lambda[k]||1),1e-9));
+    // Actualiza sliders
+    document.querySelectorAll('#sliderHost input[type=range]').forEach((sl,i)=>{
+      const v = clamp(state.scoresSD[i], -3, 3);
+      sl.value = v; document.getElementById('out'+i).textContent = (+v).toFixed(2);
+    });
+    draw();
+  }
+
+  // Cholesky simple para simétricas definidas positivas
+  function solveSymmetric(A,b){
+    const n=A.length; const L=Array.from({length:n},()=>Array(n).fill(0));
+    for(let i=0;i<n;i++){
+      for(let j=0;j<=i;j++){
+        let sum=A[i][j];
+        for(let k=0;k<j;k++) sum-=L[i][k]*L[j][k];
+        if(i===j){ if(sum<=1e-12) return null; L[i][j]=Math.sqrt(sum); }
+        else L[i][j]=sum/L[j][j];
+      }
+    }
+    // resuelve L y = b
+    const y=Array(n).fill(0); for(let i=0;i<n;i++){ let s=b[i]; for(let k=0;k<i;k++) s-=L[i][k]*y[k]; y[i]=s/L[i][i]; }
+    // resuelve L^T x = y
+    const x=Array(n).fill(0); for(let i=n-1;i>=0;i--){ let s=y[i]; for(let k=i+1;k<n;k++) s-=L[k][i]*x[k]; x[i]=s/L[i][i]; }
+    return x;
+  }
+
+  function drawAxes(){
+    ctx.clearRect(0,0,W,H);
+    // fondo plot
+    ctx.fillStyle="#091126"; ctx.fillRect(P.l,P.t,PW,PH);
+    // grid X log ticks
+    const ticks = niceLogTicks(xmin,xmax);
+    ctx.strokeStyle="#112242"; ctx.lineWidth=1;
+    ticks.forEach(([v,lab,isMajor])=>{
+      const x = x2px(v);
+      ctx.beginPath(); ctx.moveTo(x,P.t); ctx.lineTo(x,P.t+PH); ctx.stroke();
+      ctx.fillStyle = isMajor? '#a5b4d6':'#6b7aa8';
+      ctx.font = '12px system-ui'; ctx.textAlign='center'; ctx.fillText(lab, x, P.t+PH+18);
+    });
+    // grid Y
+    const yt = linearTicks(ymin,ymax,6);
+    yt.forEach(v=>{
+      const y = y2px(v);
+      ctx.strokeStyle="#112242"; ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+PW,y); ctx.stroke();
+      ctx.fillStyle='#a5b4d6'; ctx.textAlign='right'; ctx.fillText(fmtW(v), P.l-8, y+4);
+    });
+    // marco
+    ctx.strokeStyle="#24426f"; ctx.strokeRect(P.l,P.t,PW,PH);
+    // labels
+    ctx.fillStyle='#cdd9f5'; ctx.textAlign='center'; ctx.fillText('Duración (s) — escala log', P.l+PW/2, H-18);
+    ctx.save(); ctx.translate(20, P.t+PH/2); ctx.rotate(-Math.PI/2); ctx.fillText('Potencia (W)', 0, 0); ctx.restore();
+  }
+
+  function draw(){
+    drawAxes();
+    // media μ
+    const yMean = state.grid.map((t,i)=> Math.exp(state.mu[i]));
+    ctx.lineWidth=2; ctx.strokeStyle='var(--gold)'; pathLine(state.grid, yMean); ctx.stroke();
+    // MMP CSV si hay
+    if(state.mmpCSV){
+      ctx.lineWidth=2; ctx.strokeStyle='#888'; pathLine(state.mmpCSV.t, state.mmpCSV.y); ctx.setLineDash([5,6]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // curva actual
+    const y = curveFromScores();
+    ctx.lineWidth=3; ctx.strokeStyle='var(--c1)'; pathLine(state.grid, y); ctx.stroke();
+    updateKeyVals(y);
+  }
+
+  function updateKeyVals(y){
+    const pts = [5, 60, 300, 1200, 3600, 7200];
+    const arr = pts.map(t=> [t, interpY(t, state.grid, y)]);
+    document.getElementById('keyVals').innerHTML = arr.map(([t,v])=> `${secFmt(t)}: <b>${fmtW(v)}</b>`).join(' · ');
+  }
+  function interpY(x, xs, ys){
+    // nearest
+    let best=0,bd=1e99;
+    for(let i=0;i<xs.length;i++){ const d=Math.abs(xs[i]-x); if(d<bd){bd=d;best=i;} }
+    return ys[best];
+  }
+
+  function updateScree(){
+    const host = document.getElementById('scree'); host.innerHTML='';
+    const lam = state.lambda; if(!lam||!lam.length){ host.innerHTML='<div class="mut small" style="padding:8px">Sin λ — demo</div>'; return; }
+    const sum = lam.reduce((a,b)=>a+b,0);
+    lam.forEach((v,i)=>{
+      const d = document.createElement('div'); d.className='bar';
+      const h = Math.max(6, 52*(v/sum)); d.style.height = h+'px';
+      d.innerHTML = `<small>PC${i+1} ${fmtPct(v/sum)}</small>`;
+      host.appendChild(d);
+    });
+  }
+
+  // --- Interacción ---
+  let dragging=false;
+  canvas.addEventListener('mousedown', ()=> dragging=true);
+  window.addEventListener('mouseup', ()=> dragging=false);
+  canvas.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    // desplazar Y range con drag vertical (zoom coarse)
+    const dy = e.movementY;
+    const scale = (ymax-ymin);
+    ymin = Math.max(0, ymin + dy*0.5);
+    ymax = ymin + scale; // desplaza ventana
+    draw();
+  });
+
+  document.getElementById('btnReset').addEventListener('click', ()=>{
+    state.scoresSD = state.scoresSD.map(_=>0);
+    document.querySelectorAll('#sliderHost input[type=range]').forEach((sl,i)=>{ sl.value=0; document.getElementById('out'+i).textContent='0.00'; });
+    draw();
+  });
+  document.getElementById('btnExport').addEventListener('click', ()=>{
+    const y = curveFromScores();
+    const csv = 'duration_s,power_W\n' + state.grid.map((t,i)=> `${t},${y[i]}`).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mmp_fpca_curve.csv'; a.click();
+  });
+
+  function startAnim(idx){ stopAnim();
+    const sl = document.querySelector(`#sliderHost input[data-idx="${idx}"]`); if(!sl) return;
+    let dir = 1; let v = -3;
+    state.anim = setInterval(()=>{
+      v += dir*0.05; if(v>3){dir=-1; v=3;} if(v<-3){dir=1; v=-3;}
+      sl.value = v; state.scoresSD[idx]=v; document.getElementById('out'+idx).textContent=v.toFixed(2); draw();
+    }, +document.getElementById('animSpeed').value);
+  }
+  function stopAnim(){ if(state.anim){ clearInterval(state.anim); state.anim=null; } }
+  document.getElementById('animSpeed').addEventListener('input', ()=>{ if(state.anim){ // reinicia con nueva velocidad
+      const idx = state.scoresSD.findIndex(()=>true); // dummy
+    }
+  });
+  document.getElementById('btnAnim1').addEventListener('click', ()=> startAnim(0));
+  document.getElementById('btnAnim2').addEventListener('click', ()=> startAnim(1));
+  document.getElementById('btnAnim3').addEventListener('click', ()=> startAnim(2));
+  document.getElementById('btnStop').addEventListener('click', stopAnim);
+
+  // Carga modelo JSON
+  document.getElementById('fileModel').addEventListener('change', (e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    const fr=new FileReader(); fr.onload=()=>{
+      try{ const m=JSON.parse(fr.result); loadModel(m);}catch(err){ alert('JSON inválido'); }
+    }; fr.readAsText(f);
+  });
+  // Carga MMP CSV
+  document.getElementById('fileMmp').addEventListener('change', (e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    const fr=new FileReader(); fr.onload=()=>{
+      const lines = fr.result.split(/\r?\n/).filter(Boolean);
+      let rows = lines.map(l=> l.trim().split(/[;,\t]/).map(x=> +x));
+      if(isNaN(rows[0][0])) rows = rows.slice(1); // salta header
+      const t=[], y=[]; rows.forEach(r=>{ if(r.length>=2 && isFinite(r[0]) && isFinite(r[1])){ t.push(+r[0]); y.push(+r[1]); }});
+      // ordena por t
+      const idx = t.map((v,i)=>[v,i]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+      state.mmpCSV = { t: idx.map(i=> t[i]), y: idx.map(i=> y[i]) };
+      document.getElementById('mmpMeta').textContent = `${t.length} puntos MMP`;
+      suggestScoresFromMMP();
+      draw();
+    }; fr.readAsText(f);
+  });
+
+  // Inicializa con modelo demo
+  loadModel(makeDemoModel());
+})();
+</script>
+</body>
+</html>
