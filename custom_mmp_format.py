@@ -8,10 +8,7 @@ Keywords: principal-component analysis; power output; cycling; performance; crit
 Michael J. Puchowicz and Philip F. Skiba - Adaptado para formato MMP
 ********************************************************************************************************
 Uso:
-    python FPCA_MMP.py --f MMP_242.csv
-    python FPCA_MMP.py --file datos_mmp.csv
-    python FPCA_MMP.py -f mi_archivo.csv
-    python FPCA_MMP.py datos_mmp.csv
+python FPCA_MMP.py --f MMP_242.csv
 """
 
 import numpy as np
